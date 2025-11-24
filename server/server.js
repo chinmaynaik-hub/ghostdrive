@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors({
   origin: 'http://localhost:5173',
-  methods: ['GET', 'POST'],
+  methods: ['GET', 'POST', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
@@ -214,43 +214,234 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-app.get('/api/download/:fileId', async (req, res) => {
+// File preview endpoint - returns metadata without decrementing views
+app.get('/api/file/:accessToken', async (req, res) => {
   try {
-    const file = await File.findByPk(req.params.fileId);
+    const { accessToken } = req.params;
+    
+    // Validate access token format (64 character hex string)
+    if (!/^[a-f0-9]{64}$/i.test(accessToken)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid access token format' 
+      });
+    }
+    
+    // Find file by access token
+    const file = await File.findOne({ where: { accessToken } });
     
     if (!file) {
-      return res.status(404).json({ message: 'File not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'File not found' 
+      });
     }
 
+    // Check if file is active
+    if (file.status !== 'active') {
+      return res.status(410).json({ 
+        success: false,
+        message: 'File no longer available' 
+      });
+    }
+
+    // Check expiry time
+    if (new Date() > file.expiryTime) {
+      file.status = 'expired';
+      await file.save();
+      return res.status(410).json({ 
+        success: false,
+        message: 'File has expired' 
+      });
+    }
+
+    // Check view limit
     if (file.viewsRemaining <= 0) {
-      return res.status(400).json({ message: 'File has expired' });
+      file.status = 'expired';
+      await file.save();
+      return res.status(410).json({ 
+        success: false,
+        message: 'View limit reached' 
+      });
     }
 
-    if (new Date() > file.expiresAt) {
-      return res.status(400).json({ message: 'File has expired' });
+    // Return file metadata without decrementing views
+    const metadata = {
+      success: true,
+      filename: file.originalName,
+      fileSize: file.fileSize,
+      uploadTimestamp: file.createdAt,
+      viewsRemaining: file.viewsRemaining,
+      expiryTime: file.expiryTime,
+      fileHash: file.fileHash,
+      transactionHash: file.transactionHash
+    };
+
+    // Conditionally include uploader address based on anonymous mode
+    if (!file.anonymousMode) {
+      metadata.uploaderAddress = file.uploaderAddress;
     }
 
-    // Decrement views remaining
-    file.viewsRemaining--;
-    await file.save();
-
-    // Send file
-    res.download(file.path, file.filename);
-
-    // Delete file if no views remaining
-    if (file.viewsRemaining <= 0) {
-      setTimeout(async () => {
-        try {
-          await file.destroy();
-          fs.unlinkSync(file.path);
-        } catch (err) {
-          console.error('Error deleting file:', err);
-        }
-      }, 1000);
-    }
+    res.json(metadata);
   } catch (error) {
-    console.error('Download error:', error);
-    res.status(500).json({ message: 'Error downloading file' });
+    console.error('File preview error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error retrieving file information' 
+    });
+  }
+});
+
+// Helper function to delete file from filesystem and update database
+async function deleteFile(file) {
+  try {
+    // Delete file from filesystem
+    if (fs.existsSync(file.filePath)) {
+      fs.unlinkSync(file.filePath);
+      console.log(`✓ Deleted file from filesystem: ${file.filePath}`);
+    }
+    
+    // Update status to 'deleted' in database
+    file.status = 'deleted';
+    await file.save();
+    console.log(`✓ Updated file status to 'deleted' in database: ${file.id}`);
+    
+    return true;
+  } catch (error) {
+    console.error('✗ Error deleting file:', error);
+    throw error;
+  }
+}
+
+app.get('/api/download/:accessToken', async (req, res) => {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const { accessToken } = req.params;
+    
+    // Validate access token format (64 character hex string)
+    if (!/^[a-f0-9]{64}$/i.test(accessToken)) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid access token format' 
+      });
+    }
+    
+    // Find file by access token with row lock for atomic update
+    const file = await File.findOne({ 
+      where: { accessToken },
+      lock: transaction.LOCK.UPDATE,
+      transaction
+    });
+    
+    if (!file) {
+      await transaction.rollback();
+      return res.status(404).json({ 
+        success: false,
+        message: 'File not found' 
+      });
+    }
+
+    // Verify file exists and is active
+    if (file.status !== 'active') {
+      await transaction.rollback();
+      return res.status(410).json({ 
+        success: false,
+        message: 'File no longer available',
+        code: 'FILE_NOT_ACTIVE'
+      });
+    }
+
+    // Check expiry time before download
+    if (new Date() > file.expiryTime) {
+      file.status = 'expired';
+      await file.save({ transaction });
+      await transaction.commit();
+      return res.status(410).json({ 
+        success: false,
+        message: 'File has expired',
+        code: 'FILE_EXPIRED'
+      });
+    }
+
+    // Check view limit before download
+    if (file.viewsRemaining <= 0) {
+      file.status = 'expired';
+      await file.save({ transaction });
+      await transaction.commit();
+      return res.status(410).json({ 
+        success: false,
+        message: 'View limit reached',
+        code: 'VIEW_LIMIT_REACHED'
+      });
+    }
+
+    // Verify file exists on filesystem
+    if (!fs.existsSync(file.filePath)) {
+      file.status = 'deleted';
+      await file.save({ transaction });
+      await transaction.commit();
+      return res.status(404).json({ 
+        success: false,
+        message: 'File not found on server',
+        code: 'FILE_NOT_FOUND_ON_DISK'
+      });
+    }
+
+    // Atomically decrement view count
+    file.viewsRemaining = file.viewsRemaining - 1;
+    const shouldDelete = file.viewsRemaining <= 0;
+    
+    await file.save({ transaction });
+    await transaction.commit();
+    
+    console.log(`✓ Download initiated for file: ${file.originalName}, views remaining: ${file.viewsRemaining}`);
+
+    // Send file to client
+    res.download(file.filePath, file.originalName, async (err) => {
+      if (err) {
+        console.error('✗ Error sending file:', err);
+        // Don't send another response if headers already sent
+        if (!res.headersSent) {
+          res.status(500).json({ 
+            success: false,
+            message: 'Error downloading file' 
+          });
+        }
+      } else {
+        console.log(`✓ File sent successfully: ${file.originalName}`);
+        
+        // Queue file for deletion when views reach 0
+        if (shouldDelete) {
+          console.log('⏳ Queueing file for deletion...');
+          setTimeout(async () => {
+            try {
+              // Reload file to get latest state
+              const fileToDelete = await File.findByPk(file.id);
+              if (fileToDelete && fileToDelete.status === 'active') {
+                await deleteFile(fileToDelete);
+                console.log(`✓ File deleted after reaching view limit: ${file.originalName}`);
+              }
+            } catch (deleteError) {
+              console.error('✗ Error in delayed file deletion:', deleteError);
+            }
+          }, 2000); // Wait 2 seconds to ensure download completes
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('✗ Download error:', error);
+    await transaction.rollback();
+    
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        success: false,
+        message: 'Error downloading file',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
   }
 });
 
@@ -263,6 +454,70 @@ app.get('/api/files', async (req, res) => {
   } catch (error) {
     console.error('File list error:', error.stack);
     res.status(500).json({ message: 'Error fetching files' });
+  }
+});
+
+// Manual file deletion endpoint
+app.delete('/api/file/:fileId', async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    const { walletAddress } = req.body;
+
+    // Validate wallet address is provided
+    if (!walletAddress) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Wallet address is required for file deletion',
+        code: 'WALLET_ADDRESS_REQUIRED'
+      });
+    }
+
+    // Find file by ID
+    const file = await File.findByPk(fileId);
+    
+    if (!file) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'File not found',
+        code: 'FILE_NOT_FOUND'
+      });
+    }
+
+    // Check if file belongs to requesting wallet
+    if (file.uploaderAddress.toLowerCase() !== walletAddress.toLowerCase()) {
+      return res.status(403).json({ 
+        success: false,
+        message: 'You do not have permission to delete this file',
+        code: 'UNAUTHORIZED'
+      });
+    }
+
+    // Check if file is already deleted
+    if (file.status === 'deleted') {
+      return res.status(410).json({ 
+        success: false,
+        message: 'File has already been deleted',
+        code: 'ALREADY_DELETED'
+      });
+    }
+
+    // Delete file from filesystem and update database
+    await deleteFile(file);
+
+    res.json({ 
+      success: true,
+      message: 'File deleted successfully',
+      fileId: file.id,
+      filename: file.originalName
+    });
+    
+  } catch (error) {
+    console.error('✗ File deletion error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error deleting file',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 });
 
