@@ -171,6 +171,62 @@ class BlockchainService {
   }
 
   /**
+   * Get file metadata from blockchain using file hash
+   * This is the primary method for verification
+   * @param {string} fileHash - File hash to query (with or without 0x prefix)
+   * @returns {Promise<Object|null>} File metadata or null if not found
+   */
+  async getFileMetadataFromBlockchain(fileHash) {
+    this.ensureInitialized();
+
+    try {
+      // Convert hex string to bytes32 if needed
+      let fileHashBytes32;
+      if (fileHash.startsWith('0x')) {
+        fileHashBytes32 = fileHash;
+      } else {
+        fileHashBytes32 = '0x' + fileHash;
+      }
+
+      // Ensure it's 32 bytes (64 hex characters + 0x prefix)
+      if (fileHashBytes32.length !== 66) {
+        throw new Error('File hash must be 32 bytes (64 hex characters)');
+      }
+
+      // Query the smart contract
+      const metadata = await this.contract.methods
+        .getFileMetadata(fileHashBytes32)
+        .call();
+
+      // Check if file exists
+      if (!metadata.exists) {
+        return null;
+      }
+
+      // Get block information for the file
+      // Since we don't have the transaction hash, we'll return the metadata
+      // The block number will need to be retrieved from the database
+      return {
+        fileHash: metadata.fileHash,
+        timestamp: parseInt(metadata.timestamp),
+        uploader: metadata.uploader,
+        exists: metadata.exists
+      };
+    } catch (error) {
+      // Handle "File not found" error gracefully
+      if (error.message.includes('File not found') || 
+          error.message.includes('revert')) {
+        console.log(`File not found on blockchain: ${fileHash}`);
+        return null;
+      }
+      
+      // Re-throw other errors
+      console.error('Blockchain query error:', error.message);
+      throw new Error(`Failed to retrieve file metadata from blockchain: ${error.message}`);
+    }
+  }
+
+  /**
    * Verify if a file exists on blockchain
    * @param {string} fileHash - File hash to verify
    * @returns {Promise<boolean>} True if file exists
