@@ -98,6 +98,25 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
+    // Validate wallet address is provided
+    if (!req.body.walletAddress) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Wallet address is required',
+        code: 'WALLET_ADDRESS_REQUIRED'
+      });
+    }
+
+    // Validate wallet address format (Ethereum address: 0x followed by 40 hex characters)
+    const walletAddressRegex = /^0x[a-fA-F0-9]{40}$/;
+    if (!walletAddressRegex.test(req.body.walletAddress)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid wallet address format. Expected Ethereum address (0x followed by 40 hex characters)',
+        code: 'INVALID_WALLET_ADDRESS'
+      });
+    }
+
     uploadedFilePath = req.file.path;
 
     // Calculate expiry time
@@ -136,7 +155,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       const blockchainResult = await blockchainService.recordFileOnBlockchain(
         fileHash,
         Math.floor(Date.now() / 1000),
-        req.body.walletAddress || '0x0000000000000000000000000000000000000000'
+        req.body.walletAddress
       );
       transactionHash = blockchainResult.transactionHash;
       blockNumber = blockchainResult.blockNumber;
@@ -166,7 +185,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       fileSize: req.file.size,
       fileHash,
       accessToken: require('crypto').randomBytes(32).toString('hex'),
-      uploaderAddress: req.body.walletAddress || '0x0000000000000000000000000000000000000000',
+      uploaderAddress: req.body.walletAddress,
       anonymousMode: req.body.anonymousMode === 'true' || req.body.anonymousMode === true,
       viewLimit,
       viewsRemaining: viewLimit,
@@ -517,6 +536,115 @@ app.delete('/api/file/:fileId', async (req, res) => {
       success: false,
       message: 'Error deleting file',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
+// File verification endpoint
+app.post('/api/verify', async (req, res) => {
+  try {
+    const { fileHash, transactionHash } = req.body;
+
+    // Validate required fields
+    if (!fileHash) {
+      return res.status(400).json({
+        success: false,
+        message: 'File hash is required',
+        code: 'FILE_HASH_REQUIRED'
+      });
+    }
+
+    // Normalize file hash (remove 0x prefix if present)
+    const normalizedFileHash = fileHash.startsWith('0x') 
+      ? fileHash.slice(2) 
+      : fileHash;
+
+    // Validate hash format (64 hex characters)
+    if (!/^[a-f0-9]{64}$/i.test(normalizedFileHash)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid file hash format. Expected 64 hex characters.',
+        code: 'INVALID_HASH_FORMAT'
+      });
+    }
+
+    // Check if blockchain service is available
+    const isConnected = await blockchainService.isConnected();
+    if (!isConnected) {
+      return res.status(503).json({
+        success: false,
+        message: 'Blockchain service is not available. Please try again later.',
+        code: 'BLOCKCHAIN_UNAVAILABLE'
+      });
+    }
+
+    // Query smart contract for stored hash
+    console.log(`Verifying file hash: ${normalizedFileHash}`);
+    const blockchainMetadata = await blockchainService.getFileMetadataFromBlockchain(normalizedFileHash);
+
+    if (!blockchainMetadata) {
+      // File not found on blockchain
+      return res.json({
+        success: true,
+        verified: false,
+        message: 'File not found on blockchain',
+        providedHash: normalizedFileHash,
+        blockchainHash: null
+      });
+    }
+
+    // Extract blockchain hash (remove 0x prefix for comparison)
+    const blockchainHash = blockchainMetadata.fileHash.startsWith('0x')
+      ? blockchainMetadata.fileHash.slice(2)
+      : blockchainMetadata.fileHash;
+
+    // Compare hashes
+    const verified = blockchainHash.toLowerCase() === normalizedFileHash.toLowerCase();
+
+    // Try to get additional metadata from database if transactionHash is provided
+    let blockNumber = null;
+    let uploadTimestamp = null;
+
+    if (transactionHash) {
+      try {
+        const file = await File.findOne({ 
+          where: { transactionHash } 
+        });
+        
+        if (file) {
+          blockNumber = file.blockNumber;
+          uploadTimestamp = file.createdAt;
+        }
+      } catch (dbError) {
+        console.error('Error fetching file from database:', dbError.message);
+        // Continue without database metadata
+      }
+    }
+
+    // Return verification result with blockchain metadata
+    res.json({
+      success: true,
+      verified,
+      message: verified 
+        ? 'File integrity verified successfully' 
+        : 'File hash does not match blockchain record',
+      providedHash: normalizedFileHash,
+      blockchainHash: blockchainHash,
+      timestamp: blockchainMetadata.timestamp,
+      uploader: blockchainMetadata.uploader,
+      blockNumber: blockNumber,
+      uploadTimestamp: uploadTimestamp
+    });
+
+    console.log(`✓ Verification complete: ${verified ? 'VERIFIED' : 'NOT VERIFIED'}`);
+
+  } catch (error) {
+    console.error('✗ Verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error verifying file',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      code: 'VERIFICATION_ERROR'
     });
   }
 });
