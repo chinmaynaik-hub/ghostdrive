@@ -1,5 +1,4 @@
 const { recoverPersonalSignature } = require('@metamask/eth-sig-util');
-const { bufferToHex } = require('ethereumjs-util');
 
 /**
  * Middleware to verify wallet signature for sensitive operations
