@@ -6,6 +6,7 @@ const sequelize = require('./config/database');
 const File = require('./models/File');
 const blockchainService = require('./services/blockchainService');
 const { calculateFileHash, verifyFileHash } = require('./utils/hashUtils');
+const { verifyWalletSignature, isValidWalletAddress } = require('./middleware/walletAuth');
 require('dotenv').config();
 const fs = require('fs');
 
@@ -476,20 +477,81 @@ app.get('/api/files', async (req, res) => {
   }
 });
 
-// Manual file deletion endpoint
-app.delete('/api/file/:fileId', async (req, res) => {
+// Get all files for a specific wallet address
+app.get('/api/files/:walletAddress', async (req, res) => {
   try {
-    const { fileId } = req.params;
-    const { walletAddress } = req.body;
+    const { walletAddress } = req.params;
 
-    // Validate wallet address is provided
-    if (!walletAddress) {
-      return res.status(400).json({ 
+    // Validate wallet address format
+    if (!isValidWalletAddress(walletAddress)) {
+      return res.status(400).json({
         success: false,
-        message: 'Wallet address is required for file deletion',
-        code: 'WALLET_ADDRESS_REQUIRED'
+        message: 'Invalid wallet address format. Expected Ethereum address (0x followed by 40 hex characters)',
+        code: 'INVALID_WALLET_ADDRESS'
       });
     }
+
+    // Query database for files matching wallet address
+    const files = await File.findAll({
+      where: {
+        uploaderAddress: walletAddress.toLowerCase()
+      },
+      order: [['createdAt', 'DESC']] // Sort by upload timestamp (newest first)
+    });
+
+    // Calculate derived fields for each file
+    const now = new Date();
+    const enrichedFiles = files.map(file => {
+      const fileData = file.toJSON();
+      
+      // Calculate time remaining until expiry (in milliseconds)
+      const expiryTime = new Date(file.expiryTime);
+      const timeRemaining = expiryTime - now;
+      
+      // Calculate derived status
+      let derivedStatus = file.status;
+      if (file.status === 'active') {
+        if (timeRemaining <= 0) {
+          derivedStatus = 'expired';
+        } else if (file.viewsRemaining <= 0) {
+          derivedStatus = 'expired';
+        }
+      }
+      
+      // Add derived fields
+      return {
+        ...fileData,
+        timeRemaining: Math.max(0, timeRemaining), // milliseconds until expiry (0 if expired)
+        timeRemainingHours: Math.max(0, Math.floor(timeRemaining / (1000 * 60 * 60))), // hours until expiry
+        derivedStatus,
+        isExpired: timeRemaining <= 0 || file.viewsRemaining <= 0,
+        shareLink: `${req.protocol}://${req.get('host')}/download/${file.accessToken}`
+      };
+    });
+
+    res.json({
+      success: true,
+      count: enrichedFiles.length,
+      files: enrichedFiles
+    });
+
+  } catch (error) {
+    console.error('✗ Error fetching user files:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching files',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
+// Manual file deletion endpoint with wallet signature verification
+app.delete('/api/file/:fileId', verifyWalletSignature, async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    
+    // verifiedWalletAddress is set by the middleware after signature verification
+    const walletAddress = req.verifiedWalletAddress;
 
     // Find file by ID
     const file = await File.findByPk(fileId);
