@@ -89,7 +89,7 @@ async function verifySignatureWithWeb3(message, signature, expectedAddress) {
  * Validates that a wallet address matches the expected format
  */
 function isValidWalletAddress(address) {
-  const walletAddressRegex = /^0x[a-fA-F0-9]{40}$/;
+  const walletAddressRegex = /^0[xX][a-fA-F0-9]{40}$/;
   return walletAddressRegex.test(address);
 }
 
