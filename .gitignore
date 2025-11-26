@@ -48,3 +48,7 @@ Thumbs.db
 # Compressed files
 *.rar
 *.zip
+
+# Documentation and spec files
+*.md
+!README.md
