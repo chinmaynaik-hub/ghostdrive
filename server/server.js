@@ -7,6 +7,7 @@ const File = require('./models/File');
 const blockchainService = require('./services/blockchainService');
 const cleanupService = require('./services/cleanupService');
 const { calculateFileHash, verifyFileHash } = require('./utils/hashUtils');
+const { generateUniqueAccessToken, isValidAccessToken } = require('./utils/tokenUtils');
 const { verifyWalletSignature, isValidWalletAddress } = require('./middleware/walletAuth');
 const { 
   errorHandler, 
@@ -17,6 +18,20 @@ const {
   GoneError,
   BlockchainError
 } = require('./middleware/errorHandler');
+const {
+  fileValidationMiddleware,
+  createSecureMulterConfig,
+  sanitizeFilename,
+  MAX_FILE_SIZE
+} = require('./middleware/fileValidation');
+const {
+  uploadLimiter,
+  downloadLimiter,
+  previewLimiter,
+  verifyLimiter,
+  deleteLimiter,
+  generalLimiter
+} = require('./middleware/rateLimiter');
 require('dotenv').config();
 const fs = require('fs');
 
@@ -27,9 +42,12 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({
   origin: 'http://localhost:5173',
   methods: ['GET', 'POST', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-wallet-address', 'x-signature', 'x-message']
 }));
 app.use(express.json());
+
+// Apply general rate limiting to all routes
+app.use(generalLimiter);
 
 // Database Connection and Sync
 sequelize.sync({ alter: true })
@@ -51,18 +69,14 @@ blockchainService.initialize()
 // Start Cleanup Service
 cleanupService.start();
 
-// File Storage Configuration
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
+// File Storage Configuration with Security Enhancements
+// Uses secure multer config with file size limits (100MB) and filename validation
+const secureMulterConfig = createSecureMulterConfig({
+  maxSize: MAX_FILE_SIZE,
+  destination: 'uploads/'
 });
 
-const upload = multer({ storage });
+const upload = multer(secureMulterConfig);
 
 // Ensure uploads directory exists
 if (!fs.existsSync('uploads')) {
@@ -103,7 +117,7 @@ app.get('/api/health', async (req, res) => {
 });
 
 // Routes
-app.post('/api/upload', upload.single('file'), async (req, res) => {
+app.post('/api/upload', uploadLimiter, upload.single('file'), fileValidationMiddleware, async (req, res) => {
   const transaction = await sequelize.transaction();
   let uploadedFilePath = null;
 
@@ -111,6 +125,9 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
     }
+
+    // Use sanitized filename from validation middleware
+    const safeOriginalName = req.sanitizedFilename || sanitizeFilename(req.file.originalname);
 
     // Validate wallet address is provided
     if (!req.body.walletAddress) {
@@ -190,15 +207,21 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       });
     }
 
+    // Generate unique access token with collision checking
+    const accessToken = await generateUniqueAccessToken(async (token) => {
+      const existing = await File.findOne({ where: { accessToken: token } });
+      return existing !== null;
+    });
+
     // Store transaction hash and block number in database
     const viewLimit = parseInt(req.body.deleteAfterViews) || 1;
     const file = await File.create({
-      filename: req.file.originalname,
-      originalName: req.file.originalname,
+      filename: safeOriginalName,
+      originalName: safeOriginalName,
       filePath: req.file.path,
       fileSize: req.file.size,
       fileHash,
-      accessToken: require('crypto').randomBytes(32).toString('hex'),
+      accessToken,
       uploaderAddress: req.body.walletAddress,
       anonymousMode: req.body.anonymousMode === 'true' || req.body.anonymousMode === true,
       viewLimit,
@@ -248,15 +271,16 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 });
 
 // File preview endpoint - returns metadata without decrementing views
-app.get('/api/file/:accessToken', async (req, res) => {
+app.get('/api/file/:accessToken', previewLimiter, async (req, res) => {
   try {
     const { accessToken } = req.params;
     
-    // Validate access token format (64 character hex string)
-    if (!/^[a-f0-9]{64}$/i.test(accessToken)) {
+    // Validate access token format using secure validation
+    if (!isValidAccessToken(accessToken)) {
       return res.status(400).json({ 
         success: false,
-        message: 'Invalid access token format' 
+        message: 'Invalid access token format',
+        code: 'INVALID_ACCESS_TOKEN'
       });
     }
     
@@ -346,18 +370,19 @@ async function deleteFile(file) {
   }
 }
 
-app.get('/api/download/:accessToken', async (req, res) => {
+app.get('/api/download/:accessToken', downloadLimiter, async (req, res) => {
   const transaction = await sequelize.transaction();
   
   try {
     const { accessToken } = req.params;
     
-    // Validate access token format (64 character hex string)
-    if (!/^[a-f0-9]{64}$/i.test(accessToken)) {
+    // Validate access token format using secure validation
+    if (!isValidAccessToken(accessToken)) {
       await transaction.rollback();
       return res.status(400).json({ 
         success: false,
-        message: 'Invalid access token format' 
+        message: 'Invalid access token format',
+        code: 'INVALID_ACCESS_TOKEN'
       });
     }
     
@@ -559,7 +584,7 @@ app.get('/api/files/:walletAddress', async (req, res) => {
 });
 
 // Manual file deletion endpoint with wallet signature verification
-app.delete('/api/file/:fileId', verifyWalletSignature, async (req, res) => {
+app.delete('/api/file/:fileId', deleteLimiter, verifyWalletSignature, async (req, res) => {
   try {
     const { fileId } = req.params;
     
@@ -643,7 +668,7 @@ app.delete('/api/file/:fileId', verifyWalletSignature, async (req, res) => {
 });
 
 // File verification endpoint
-app.post('/api/verify', async (req, res) => {
+app.post('/api/verify', verifyLimiter, async (req, res) => {
   try {
     const { fileHash, transactionHash } = req.body;
 
@@ -774,6 +799,26 @@ app.post('/api/cleanup/trigger', async (req, res) => {
       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
+});
+
+// Multer error handler for file upload errors
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      const maxSizeMB = Math.round(MAX_FILE_SIZE / (1024 * 1024));
+      return res.status(413).json({
+        success: false,
+        message: `File size exceeds maximum limit of ${maxSizeMB}MB`,
+        code: 'FILE_TOO_LARGE'
+      });
+    }
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+      code: 'FILE_UPLOAD_ERROR'
+    });
+  }
+  next(err);
 });
 
 // 404 handler for undefined routes
