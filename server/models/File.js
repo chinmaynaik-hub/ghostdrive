@@ -87,16 +87,40 @@ const File = sequelize.define('File', {
   indexes: [
     {
       unique: true,
-      fields: ['accessToken']
+      fields: ['accessToken'],
+      name: 'idx_access_token'
     },
     {
-      fields: ['uploaderAddress']
+      fields: ['uploaderAddress'],
+      name: 'idx_uploader_address'
     },
     {
-      fields: ['expiryTime']
+      fields: ['expiryTime'],
+      name: 'idx_expiry_time'
     },
     {
-      fields: ['status']
+      fields: ['status'],
+      name: 'idx_status'
+    },
+    // Composite index for cleanup service queries (status + expiryTime)
+    {
+      fields: ['status', 'expiryTime'],
+      name: 'idx_status_expiry'
+    },
+    // Composite index for user file list queries (uploaderAddress + createdAt)
+    {
+      fields: ['uploaderAddress', 'createdAt'],
+      name: 'idx_uploader_created'
+    },
+    // Index for viewsRemaining to optimize cleanup queries
+    {
+      fields: ['viewsRemaining'],
+      name: 'idx_views_remaining'
+    },
+    // Composite index for active files cleanup (status + viewsRemaining)
+    {
+      fields: ['status', 'viewsRemaining'],
+      name: 'idx_status_views'
     }
   ]
 });

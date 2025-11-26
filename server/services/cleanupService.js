@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const { Op } = require('sequelize');
 const File = require('../models/File');
 const fs = require('fs');
+const analyticsService = require('./analyticsService');
 
 /**
  * Cleanup Service
@@ -69,35 +70,28 @@ class CleanupService {
       let databaseDeleted = 0;
       let errors = 0;
 
-      // Identify files where expiryTime has passed (Requirement 8.2)
-      const expiredByTime = await File.findAll({
+      // Optimized single query to find all expired files
+      // Uses composite indexes: idx_status_expiry and idx_status_views
+      const uniqueExpiredFiles = await File.findAll({
         where: {
           status: 'active',
-          expiryTime: {
-            [Op.lt]: now
-          }
-        }
+          [Op.or]: [
+            // Files where expiryTime has passed (Requirement 8.2)
+            { expiryTime: { [Op.lt]: now } },
+            // Files where viewsRemaining is 0 (Requirement 8.3)
+            { viewsRemaining: { [Op.lte]: 0 } }
+          ]
+        },
+        // Only select fields needed for cleanup to reduce memory usage
+        attributes: ['id', 'originalName', 'filePath', 'expiryTime', 'viewsRemaining']
       });
 
-      console.log(`\n📅 Found ${expiredByTime.length} files expired by time`);
-
-      // Identify files where viewsRemaining is 0 (Requirement 8.3)
-      const expiredByViews = await File.findAll({
-        where: {
-          status: 'active',
-          viewsRemaining: {
-            [Op.lte]: 0
-          }
-        }
-      });
-
-      console.log(`👁️  Found ${expiredByViews.length} files expired by view limit`);
-
-      // Combine both lists and remove duplicates
-      const allExpiredFiles = [...expiredByTime, ...expiredByViews];
-      const uniqueExpiredFiles = Array.from(
-        new Map(allExpiredFiles.map(file => [file.id, file])).values()
-      );
+      // Count by reason for logging
+      const expiredByTime = uniqueExpiredFiles.filter(f => new Date(f.expiryTime) < now);
+      const expiredByViews = uniqueExpiredFiles.filter(f => f.viewsRemaining <= 0);
+      
+      console.log(`\n📅 Files expired by time: ${expiredByTime.length}`);
+      console.log(`👁️  Files expired by view limit: ${expiredByViews.length}`);
 
       console.log(`\n🗑️  Total unique files to delete: ${uniqueExpiredFiles.length}`);
 
@@ -144,9 +138,13 @@ class CleanupService {
       console.log(`  - Completed at: ${new Date().toISOString()}`);
       console.log('========================================\n');
 
+      // Log to analytics service
+      analyticsService.logCleanup(totalDeleted, 0, duration);
+
     } catch (error) {
       console.error('✗ Cleanup job failed:', error);
       console.error(error.stack);
+      analyticsService.logError('cleanup', error);
     } finally {
       this.isRunning = false;
     }

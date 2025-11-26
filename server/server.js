@@ -6,6 +6,7 @@ const sequelize = require('./config/database');
 const File = require('./models/File');
 const blockchainService = require('./services/blockchainService');
 const cleanupService = require('./services/cleanupService');
+const analyticsService = require('./services/analyticsService');
 const { calculateFileHash, verifyFileHash } = require('./utils/hashUtils');
 const { generateUniqueAccessToken, isValidAccessToken } = require('./utils/tokenUtils');
 const { verifyWalletSignature, isValidWalletAddress } = require('./middleware/walletAuth');
@@ -82,6 +83,23 @@ const upload = multer(secureMulterConfig);
 if (!fs.existsSync('uploads')) {
   fs.mkdirSync('uploads');
 }
+
+// Metrics endpoint for monitoring
+app.get('/api/metrics', async (req, res) => {
+  try {
+    const metrics = analyticsService.getMetrics();
+    res.json({
+      success: true,
+      metrics
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching metrics',
+      error: error.message
+    });
+  }
+});
 
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
@@ -236,6 +254,12 @@ app.post('/api/upload', uploadLimiter, upload.single('file'), fileValidationMidd
     await transaction.commit();
     console.log('✓ File record saved to database');
 
+    // Log successful upload
+    analyticsService.logUpload(true, req.file.size, {
+      fileId: file.id,
+      hasBlockchain: !!transactionHash
+    });
+
     res.json({
       success: true,
       message: 'File uploaded successfully',
@@ -248,6 +272,10 @@ app.post('/api/upload', uploadLimiter, upload.single('file'), fileValidationMidd
     });
   } catch (error) {
     console.error('✗ Upload error:', error.stack);
+    
+    // Log failed upload
+    analyticsService.logUpload(false, req.file?.size || 0, { error: error.message });
+    analyticsService.logError('upload', error);
     
     // Rollback transaction
     await transaction.rollback();
@@ -460,6 +488,7 @@ app.get('/api/download/:accessToken', downloadLimiter, async (req, res) => {
     res.download(file.filePath, file.originalName, async (err) => {
       if (err) {
         console.error('✗ Error sending file:', err);
+        analyticsService.logDownload(false, file.fileSize, { error: err.message });
         // Don't send another response if headers already sent
         if (!res.headersSent) {
           res.status(500).json({ 
@@ -469,6 +498,7 @@ app.get('/api/download/:accessToken', downloadLimiter, async (req, res) => {
         }
       } else {
         console.log(`✓ File sent successfully: ${file.originalName}`);
+        analyticsService.logDownload(true, file.fileSize, { fileId: file.id });
         
         // Queue file for deletion when views reach 0
         if (shouldDelete) {
@@ -530,11 +560,19 @@ app.get('/api/files/:walletAddress', async (req, res) => {
     }
 
     // Query database for files matching wallet address
+    // Uses composite index: idx_uploader_created for optimized sorting
     const files = await File.findAll({
       where: {
         uploaderAddress: walletAddress.toLowerCase()
       },
-      order: [['createdAt', 'DESC']] // Sort by upload timestamp (newest first)
+      order: [['createdAt', 'DESC']], // Sort by upload timestamp (newest first)
+      // Select only needed fields to reduce data transfer
+      attributes: [
+        'id', 'filename', 'originalName', 'fileSize', 'fileHash',
+        'accessToken', 'uploaderAddress', 'anonymousMode',
+        'viewLimit', 'viewsRemaining', 'expiryTime',
+        'transactionHash', 'blockNumber', 'status', 'createdAt'
+      ]
     });
 
     // Calculate derived fields for each file
@@ -747,6 +785,12 @@ app.post('/api/verify', verifyLimiter, async (req, res) => {
         // Continue without database metadata
       }
     }
+
+    // Log verification
+    analyticsService.logVerification(verified, { 
+      hashMatch: verified,
+      hasBlockchainRecord: !!blockchainMetadata 
+    });
 
     // Return verification result with blockchain metadata
     res.json({
