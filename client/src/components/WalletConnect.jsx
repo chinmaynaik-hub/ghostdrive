@@ -8,11 +8,16 @@ import {
   Alert,
   Chip,
   CircularProgress,
-  Tooltip
+  Tooltip,
+  Menu,
+  MenuItem,
+  IconButton,
+  Divider
 } from '@mui/material';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useWallet } from '../context/WalletContext';
 
 // Network names mapping
@@ -26,7 +31,143 @@ const NETWORK_NAMES = {
   31337: 'Hardhat Local',
 };
 
-const WalletConnect = () => {
+// Compact version for navigation bar
+const WalletConnectCompact = () => {
+  const {
+    walletAddress,
+    isConnected,
+    networkId,
+    error,
+    isConnecting,
+    connectWallet,
+    disconnectWallet,
+    switchNetwork,
+    clearError,
+    formatAddress,
+    isMetaMaskInstalled,
+  } = useWallet();
+
+  const [anchorEl, setAnchorEl] = React.useState(null);
+  const open = Boolean(anchorEl);
+
+  const handleClick = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  const getNetworkName = (id) => {
+    return NETWORK_NAMES[id] || `Unknown (${id})`;
+  };
+
+  const handleConnect = async () => {
+    await connectWallet();
+  };
+
+  const handleDisconnect = () => {
+    disconnectWallet();
+    handleClose();
+  };
+
+  const handleSwitchToLocal = async () => {
+    await switchNetwork('0x539');
+    handleClose();
+  };
+
+  if (!isConnected) {
+    return (
+      <Button
+        variant="outlined"
+        color="inherit"
+        onClick={handleConnect}
+        disabled={!isMetaMaskInstalled || isConnecting}
+        startIcon={isConnecting ? <CircularProgress size={16} color="inherit" /> : <AccountBalanceWalletIcon />}
+        size="small"
+        sx={{ 
+          borderColor: 'rgba(255,255,255,0.5)',
+          '&:hover': {
+            borderColor: 'white',
+            backgroundColor: 'rgba(255,255,255,0.1)'
+          }
+        }}
+      >
+        {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+      </Button>
+    );
+  }
+
+  return (
+    <>
+      <Chip
+        icon={<AccountBalanceWalletIcon sx={{ color: 'white !important' }} />}
+        label={formatAddress(walletAddress)}
+        onClick={handleClick}
+        onDelete={handleClick}
+        deleteIcon={<ExpandMoreIcon sx={{ color: 'white !important' }} />}
+        sx={{
+          backgroundColor: 'rgba(255,255,255,0.2)',
+          color: 'white',
+          fontFamily: 'monospace',
+          '&:hover': {
+            backgroundColor: 'rgba(255,255,255,0.3)',
+          },
+          '& .MuiChip-icon': {
+            color: 'white'
+          }
+        }}
+      />
+      <Menu
+        anchorEl={anchorEl}
+        open={open}
+        onClose={handleClose}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+      >
+        <MenuItem disabled sx={{ opacity: 1 }}>
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              Connected Address
+            </Typography>
+            <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+              {walletAddress}
+            </Typography>
+          </Box>
+        </MenuItem>
+        <Divider />
+        <MenuItem disabled sx={{ opacity: 1 }}>
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              Network
+            </Typography>
+            <Typography variant="body2">
+              {getNetworkName(networkId)}
+            </Typography>
+          </Box>
+        </MenuItem>
+        <Divider />
+        <MenuItem onClick={handleSwitchToLocal}>
+          <SwapHorizIcon sx={{ mr: 1 }} fontSize="small" />
+          Switch to Local Network
+        </MenuItem>
+        <MenuItem onClick={handleDisconnect} sx={{ color: 'error.main' }}>
+          <LinkOffIcon sx={{ mr: 1 }} fontSize="small" />
+          Disconnect
+        </MenuItem>
+      </Menu>
+    </>
+  );
+};
+
+// Full card version (for standalone use)
+const WalletConnectCard = () => {
   const {
     walletAddress,
     isConnected,
@@ -51,7 +192,6 @@ const WalletConnect = () => {
     return 'info';
   };
 
-
   const handleConnect = async () => {
     await connectWallet();
   };
@@ -61,7 +201,6 @@ const WalletConnect = () => {
   };
 
   const handleSwitchToLocal = async () => {
-    // Switch to Ganache local network (chainId 1337 = 0x539)
     await switchNetwork('0x539');
   };
 
@@ -116,7 +255,6 @@ const WalletConnect = () => {
             </Button>
           ) : (
             <>
-              {/* Connected Address */}
               <Box sx={{ 
                 display: 'flex', 
                 alignItems: 'center', 
@@ -142,7 +280,6 @@ const WalletConnect = () => {
                 </Tooltip>
               </Box>
 
-              {/* Network Info */}
               {networkId && (
                 <Box sx={{ 
                   display: 'flex', 
@@ -161,7 +298,6 @@ const WalletConnect = () => {
                 </Box>
               )}
 
-              {/* Action Buttons */}
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <Button
                   variant="outlined"
@@ -192,4 +328,9 @@ const WalletConnect = () => {
   );
 };
 
+// Default export is the compact version for navigation
+const WalletConnect = WalletConnectCompact;
+
+// Named exports for specific use cases
+export { WalletConnectCard, WalletConnectCompact };
 export default WalletConnect;
