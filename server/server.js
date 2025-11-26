@@ -582,14 +582,41 @@ app.delete('/api/file/:fileId', verifyWalletSignature, async (req, res) => {
       });
     }
 
+    // Store file details before deletion for confirmation response
+    const deletionDetails = {
+      fileId: file.id,
+      filename: file.originalName,
+      fileSize: file.fileSize,
+      fileHash: file.fileHash,
+      uploaderAddress: file.uploaderAddress,
+      uploadTimestamp: file.createdAt,
+      viewsRemaining: file.viewsRemaining,
+      expiryTime: file.expiryTime,
+      transactionHash: file.transactionHash,
+      blockNumber: file.blockNumber,
+      accessToken: file.accessToken
+    };
+
     // Delete file from filesystem and update database
     await deleteFile(file);
 
+    // Return success confirmation with comprehensive details
     res.json({ 
       success: true,
       message: 'File deleted successfully',
-      fileId: file.id,
-      filename: file.originalName
+      deletedAt: new Date().toISOString(),
+      file: {
+        id: deletionDetails.fileId,
+        filename: deletionDetails.filename,
+        fileSize: deletionDetails.fileSize,
+        fileHash: deletionDetails.fileHash,
+        uploaderAddress: deletionDetails.uploaderAddress,
+        uploadTimestamp: deletionDetails.uploadTimestamp,
+        viewsRemaining: deletionDetails.viewsRemaining,
+        expiryTime: deletionDetails.expiryTime,
+        transactionHash: deletionDetails.transactionHash,
+        blockNumber: deletionDetails.blockNumber
+      }
     });
     
   } catch (error) {
