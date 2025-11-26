@@ -1,6 +1,7 @@
 const Web3 = require('web3');
 const fs = require('fs');
 const path = require('path');
+const analyticsService = require('./analyticsService');
 
 class BlockchainService {
   constructor() {
@@ -73,6 +74,8 @@ class BlockchainService {
    */
   async recordFileOnBlockchain(fileHash, timestamp, walletAddress, maxRetries = 3) {
     this.ensureInitialized();
+    const startTime = Date.now();
+    let retryCount = 0;
 
     // Convert hex string to bytes32 if needed
     let fileHashBytes32;
@@ -108,9 +111,17 @@ class BlockchainService {
             gasPrice: gasPrice
           });
 
+        const confirmationTime = Date.now() - startTime;
         console.log('✓ File recorded on blockchain');
         console.log(`  Transaction hash: ${receipt.transactionHash}`);
         console.log(`  Block number: ${receipt.blockNumber}`);
+
+        // Log successful blockchain transaction
+        analyticsService.logBlockchainTransaction(true, confirmationTime, retryCount, {
+          transactionHash: receipt.transactionHash,
+          blockNumber: receipt.blockNumber,
+          gasUsed: receipt.gasUsed
+        });
 
         return {
           transactionHash: receipt.transactionHash,
@@ -120,8 +131,16 @@ class BlockchainService {
 
       } catch (error) {
         console.error(`Blockchain attempt ${attempt} failed:`, error.message);
+        retryCount++;
 
         if (attempt === maxRetries) {
+          const confirmationTime = Date.now() - startTime;
+          // Log failed blockchain transaction
+          analyticsService.logBlockchainTransaction(false, confirmationTime, retryCount, {
+            error: error.message
+          });
+          analyticsService.logError('blockchain', error, { fileHash, walletAddress });
+          
           throw new Error(
             `Blockchain recording failed after ${maxRetries} attempts: ${error.message}`
           );
