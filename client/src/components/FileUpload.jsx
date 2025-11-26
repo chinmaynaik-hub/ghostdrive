@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { 
   Box, 
   Button, 
@@ -28,6 +28,8 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import axios from 'axios';
 import { useWallet } from '../context/WalletContext';
+import TransactionRetry from './TransactionRetry';
+import { parseApiError } from './ErrorDisplay';
 
 // Upload stages for progress tracking
 const UPLOAD_STAGES = ['Select File', 'Hashing', 'Uploading', 'Blockchain', 'Complete'];
@@ -76,6 +78,14 @@ const FileUpload = () => {
   const [uploadResult, setUploadResult] = useState(null);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
+  
+  // Retry state for blockchain transactions
+  const [showRetry, setShowRetry] = useState(false);
+  const [retryData, setRetryData] = useState(null);
+  const maxRetries = 3;
+  
+  // Ref to store form data for retry
+  const formDataRef = useRef(null);
 
   // Handle file selection
   const handleFileChange = useCallback(async (event) => {
@@ -175,36 +185,134 @@ const FileUpload = () => {
     } catch (err) {
       setTransactionStatus('error');
       
-      // Handle specific error types
-      if (err.response) {
-        const { status, data } = err.response;
+      // Parse the error for consistent handling
+      const parsedError = parseApiError(err);
+      
+      // Check if this is a blockchain-related error that can be retried
+      const isBlockchainError = parsedError.message?.toLowerCase().includes('blockchain') ||
+                                parsedError.code === 'BLOCKCHAIN_ERROR' ||
+                                parsedError.code === 'BLOCKCHAIN_UNAVAILABLE' ||
+                                parsedError.code === 'NETWORK_ERROR';
+      
+      if (isBlockchainError && parsedError.retryable !== false) {
+        // Store form data for retry
+        const retryFormData = new FormData();
+        retryFormData.append('file', file);
+        retryFormData.append('deleteAfterViews', viewLimit);
+        retryFormData.append('expiresIn', expiryTime);
+        retryFormData.append('walletAddress', walletAddress);
+        retryFormData.append('anonymousMode', anonymousMode);
+        retryFormData.append('fileHash', fileHash);
+        formDataRef.current = retryFormData;
         
-        if (status === 400) {
-          if (data.code === 'WALLET_ADDRESS_REQUIRED') {
-            setError('Wallet address is required. Please connect your wallet.');
-          } else if (data.code === 'INVALID_WALLET_ADDRESS') {
-            setError('Invalid wallet address format.');
-          } else {
-            setError(data.message || 'Invalid request');
-          }
-        } else if (status === 500) {
-          if (data.message?.includes('blockchain')) {
-            setError('Blockchain transaction failed. Please try again.');
-          } else {
-            setError('Server error. Please try again later.');
-          }
-        } else {
-          setError(data.message || 'Upload failed');
-        }
-      } else if (err.code === 'ERR_NETWORK') {
-        setError('Network error. Please check your connection.');
+        setRetryData({
+          error: parsedError,
+          fileHash: fileHash
+        });
+        setShowRetry(true);
+        setError(null); // Clear regular error to show retry UI
       } else {
-        setError('Upload failed: ' + err.message);
+        // Handle non-retryable errors
+        if (err.response) {
+          const { status, data } = err.response;
+          
+          if (status === 400) {
+            if (data.code === 'WALLET_ADDRESS_REQUIRED') {
+              setError('Wallet address is required. Please connect your wallet.');
+            } else if (data.code === 'INVALID_WALLET_ADDRESS') {
+              setError('Invalid wallet address format.');
+            } else {
+              setError(data.message || 'Invalid request');
+            }
+          } else if (status === 500) {
+            setError(data.message || 'Server error. Please try again later.');
+          } else {
+            setError(data.message || 'Upload failed');
+          }
+        } else if (err.code === 'ERR_NETWORK') {
+          setError('Network error. Please check your connection.');
+        } else {
+          setError('Upload failed: ' + err.message);
+        }
       }
     } finally {
       setUploading(false);
       setUploadProgress(0);
     }
+  };
+  
+  // Handle retry for blockchain transactions
+  const handleRetry = async () => {
+    if (!formDataRef.current) {
+      setError('Unable to retry. Please start a new upload.');
+      setShowRetry(false);
+      return;
+    }
+    
+    setShowRetry(false);
+    setUploading(true);
+    setError(null);
+    setTransactionStatus('blockchain');
+    setActiveStep(3);
+    
+    try {
+      const response = await axios.post('http://localhost:5000/api/upload', formDataRef.current, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: (progressEvent) => {
+          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(progress);
+        }
+      });
+
+      // Success
+      setTransactionStatus('complete');
+      setActiveStep(4);
+      
+      setUploadResult({
+        success: true,
+        fileId: response.data.fileId,
+        accessToken: response.data.accessToken,
+        shareLink: response.data.shareLink || `http://localhost:5173/download/${response.data.accessToken}`,
+        transactionHash: response.data.transactionHash,
+        blockNumber: response.data.blockNumber,
+        fileHash: response.data.fileHash || retryData?.fileHash
+      });
+      
+      formDataRef.current = null;
+      setRetryData(null);
+      
+    } catch (err) {
+      setTransactionStatus('error');
+      const parsedError = parseApiError(err);
+      
+      // Check if we can retry again
+      const isBlockchainError = parsedError.message?.toLowerCase().includes('blockchain') ||
+                                parsedError.code === 'BLOCKCHAIN_ERROR';
+      
+      if (isBlockchainError && parsedError.retryable !== false) {
+        setRetryData({
+          error: parsedError,
+          fileHash: retryData?.fileHash
+        });
+        setShowRetry(true);
+      } else {
+        setError(parsedError.message || 'Retry failed. Please try uploading again.');
+      }
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
+  };
+  
+  // Handle cancel retry
+  const handleCancelRetry = () => {
+    setShowRetry(false);
+    setRetryData(null);
+    formDataRef.current = null;
+    setTransactionStatus('idle');
+    setActiveStep(0);
   };
 
   // Copy share link to clipboard
@@ -229,6 +337,9 @@ const FileUpload = () => {
     setTransactionStatus('idle');
     setActiveStep(0);
     setUploadProgress(0);
+    setShowRetry(false);
+    setRetryData(null);
+    formDataRef.current = null;
   }, []);
 
   // Get status color
@@ -408,8 +519,19 @@ const FileUpload = () => {
             {uploading ? 'Processing...' : 'Upload File'}
           </Button>
 
+          {/* Transaction Retry UI */}
+          {showRetry && retryData && (
+            <TransactionRetry
+              error={retryData.error}
+              onRetry={handleRetry}
+              onCancel={handleCancelRetry}
+              maxRetries={maxRetries}
+              transactionType="blockchain recording"
+            />
+          )}
+
           {/* Error Display */}
-          {error && (
+          {error && !showRetry && (
             <Alert severity="error" icon={<ErrorIcon />}>
               {error}
             </Alert>

@@ -8,6 +8,15 @@ const blockchainService = require('./services/blockchainService');
 const cleanupService = require('./services/cleanupService');
 const { calculateFileHash, verifyFileHash } = require('./utils/hashUtils');
 const { verifyWalletSignature, isValidWalletAddress } = require('./middleware/walletAuth');
+const { 
+  errorHandler, 
+  notFoundHandler, 
+  asyncHandler,
+  ValidationError,
+  NotFoundError,
+  GoneError,
+  BlockchainError
+} = require('./middleware/errorHandler');
 require('dotenv').config();
 const fs = require('fs');
 
@@ -766,6 +775,12 @@ app.post('/api/cleanup/trigger', async (req, res) => {
     });
   }
 });
+
+// 404 handler for undefined routes
+app.use(notFoundHandler);
+
+// Global error handling middleware
+app.use(errorHandler);
 
 // Start server
 app.listen(PORT, () => {

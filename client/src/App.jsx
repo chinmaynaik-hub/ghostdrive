@@ -21,6 +21,7 @@ import FileUpload from './components/FileUpload';
 import FileManager from './components/FileManager';
 import FileDownload from './components/FileDownload';
 import WalletConnect from './components/WalletConnect';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Create a theme instance
 const theme = createTheme({
@@ -109,7 +110,9 @@ function UploadPage() {
         <Typography variant="body1" color="text.secondary" align="center" sx={{ mb: 3 }}>
           Upload files securely with blockchain verification
         </Typography>
-        <FileUpload />
+        <ErrorBoundary message="Failed to load the upload component. Please refresh the page.">
+          <FileUpload />
+        </ErrorBoundary>
       </Box>
     </Container>
   );
@@ -126,7 +129,9 @@ function FilesPage() {
         <Typography variant="body1" color="text.secondary" align="center" sx={{ mb: 3 }}>
           Manage your uploaded files and share links
         </Typography>
-        <FileManager />
+        <ErrorBoundary message="Failed to load your files. Please refresh the page.">
+          <FileManager />
+        </ErrorBoundary>
       </Box>
     </Container>
   );
@@ -143,7 +148,9 @@ function DownloadPage() {
         <Typography variant="body1" color="text.secondary" align="center" sx={{ mb: 3 }}>
           Enter an access token to download a shared file
         </Typography>
-        <FileDownload />
+        <ErrorBoundary message="Failed to load the download component. Please refresh the page.">
+          <FileDownload />
+        </ErrorBoundary>
       </Box>
     </Container>
   );
@@ -159,7 +166,9 @@ function DownloadWithTokenPage() {
             You're accessing a shared file. Preview the details below before downloading.
           </Typography>
         </Paper>
-        <FileDownload />
+        <ErrorBoundary message="Failed to load the file. The link may be invalid or expired.">
+          <FileDownload />
+        </ErrorBoundary>
       </Box>
     </Container>
   );
@@ -200,11 +209,13 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <WalletProvider>
-        <BrowserRouter>
-          <AppLayout />
-        </BrowserRouter>
-      </WalletProvider>
+      <ErrorBoundary message="The application encountered an error. Please refresh the page or try again.">
+        <WalletProvider>
+          <BrowserRouter>
+            <AppLayout />
+          </BrowserRouter>
+        </WalletProvider>
+      </ErrorBoundary>
     </ThemeProvider>
   );
 }
