@@ -35,6 +35,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import axios from 'axios';
 import { useWallet } from '../context/WalletContext';
+import { FileTableRowSkeleton } from './SkeletonLoaders';
 
 const API_BASE_URL = 'http://localhost:5000';
 const AUTO_REFRESH_INTERVAL = 30000; // 30 seconds
@@ -271,9 +272,23 @@ const FileManager = () => {
         )}
 
         {loading && files.length === 0 ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-            <CircularProgress />
-          </Box>
+          <TableContainer component={Paper} variant="outlined">
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell width="30%">Filename</TableCell>
+                  <TableCell width="15%">Upload Date</TableCell>
+                  <TableCell width="12%">Views</TableCell>
+                  <TableCell width="15%">Expires In</TableCell>
+                  <TableCell width="10%">Status</TableCell>
+                  <TableCell width="18%" align="right">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                <FileTableRowSkeleton rows={3} />
+              </TableBody>
+            </Table>
+          </TableContainer>
         ) : files.length === 0 ? (
           <Alert severity="info">
             You haven't uploaded any files yet.

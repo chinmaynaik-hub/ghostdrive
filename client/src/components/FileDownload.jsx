@@ -29,6 +29,8 @@ import FingerprintIcon from '@mui/icons-material/Fingerprint';
 import WarningIcon from '@mui/icons-material/Warning';
 import axios from 'axios';
 import { useParams } from 'react-router-dom';
+import { FilePreviewSkeleton } from './SkeletonLoaders';
+import HelpTooltip, { HelpTexts } from './HelpTooltip';
 
 const API_BASE_URL = 'http://localhost:5000';
 
@@ -391,8 +393,11 @@ const FileDownload = () => {
             </Alert>
           )}
 
+          {/* Loading Skeleton */}
+          {loading && <FilePreviewSkeleton />}
+
           {/* File Preview Section */}
-          {fileInfo && (
+          {!loading && fileInfo && (
             <Paper elevation={2} sx={{ p: 2, mt: 1 }}>
               <Typography variant="h6" gutterBottom>
                 File Information
@@ -470,6 +475,7 @@ const FileDownload = () => {
                   <Typography variant="body1" fontWeight="bold">
                     File Hash:
                   </Typography>
+                  <HelpTooltip {...HelpTexts.fileHash} variant="info" />
                   <Typography 
                     variant="body2" 
                     sx={{ 

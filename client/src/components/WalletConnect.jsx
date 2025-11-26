@@ -19,6 +19,7 @@ import LinkOffIcon from '@mui/icons-material/LinkOff';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useWallet } from '../context/WalletContext';
+import HelpTooltip, { HelpTexts } from './HelpTooltip';
 
 // Network names mapping
 const NETWORK_NAMES = {
@@ -212,6 +213,7 @@ const WalletConnectCard = () => {
           <Typography variant="h6">
             Wallet Connection
           </Typography>
+          <HelpTooltip {...HelpTexts.walletConnection} variant="info" />
         </Box>
 
         {error && (

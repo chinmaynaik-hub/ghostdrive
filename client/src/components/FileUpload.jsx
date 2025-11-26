@@ -30,6 +30,7 @@ import axios from 'axios';
 import { useWallet } from '../context/WalletContext';
 import TransactionRetry from './TransactionRetry';
 import { parseApiError } from './ErrorDisplay';
+import HelpTooltip, { HelpTexts } from './HelpTooltip';
 
 // Upload stages for progress tracking
 const UPLOAD_STAGES = ['Select File', 'Hashing', 'Uploading', 'Blockchain', 'Complete'];
@@ -453,57 +454,66 @@ const FileUpload = () => {
 
           {/* Configuration Options */}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <FormControl fullWidth disabled={uploading}>
-              <InputLabel>View Limit</InputLabel>
-              <Select
-                value={viewLimit}
-                label="View Limit"
-                onChange={(e) => setViewLimit(e.target.value)}
-              >
-                <MenuItem value={1}>1 view</MenuItem>
-                <MenuItem value={3}>3 views</MenuItem>
-                <MenuItem value={5}>5 views</MenuItem>
-                <MenuItem value={10}>10 views</MenuItem>
-                <MenuItem value={25}>25 views</MenuItem>
-                <MenuItem value={50}>50 views</MenuItem>
-                <MenuItem value={100}>100 views</MenuItem>
-              </Select>
-            </FormControl>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <FormControl fullWidth disabled={uploading}>
+                <InputLabel>View Limit</InputLabel>
+                <Select
+                  value={viewLimit}
+                  label="View Limit"
+                  onChange={(e) => setViewLimit(e.target.value)}
+                >
+                  <MenuItem value={1}>1 view</MenuItem>
+                  <MenuItem value={3}>3 views</MenuItem>
+                  <MenuItem value={5}>5 views</MenuItem>
+                  <MenuItem value={10}>10 views</MenuItem>
+                  <MenuItem value={25}>25 views</MenuItem>
+                  <MenuItem value={50}>50 views</MenuItem>
+                  <MenuItem value={100}>100 views</MenuItem>
+                </Select>
+              </FormControl>
+              <HelpTooltip {...HelpTexts.viewLimit} />
+            </Box>
 
-            <FormControl fullWidth disabled={uploading}>
-              <InputLabel>Expiry Time</InputLabel>
-              <Select
-                value={expiryTime}
-                label="Expiry Time"
-                onChange={(e) => setExpiryTime(e.target.value)}
-              >
-                <MenuItem value={1}>1 hour</MenuItem>
-                <MenuItem value={6}>6 hours</MenuItem>
-                <MenuItem value={24}>24 hours</MenuItem>
-                <MenuItem value={48}>48 hours</MenuItem>
-                <MenuItem value={168}>1 week</MenuItem>
-                <MenuItem value={720}>30 days</MenuItem>
-              </Select>
-            </FormControl>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <FormControl fullWidth disabled={uploading}>
+                <InputLabel>Expiry Time</InputLabel>
+                <Select
+                  value={expiryTime}
+                  label="Expiry Time"
+                  onChange={(e) => setExpiryTime(e.target.value)}
+                >
+                  <MenuItem value={1}>1 hour</MenuItem>
+                  <MenuItem value={6}>6 hours</MenuItem>
+                  <MenuItem value={24}>24 hours</MenuItem>
+                  <MenuItem value={48}>48 hours</MenuItem>
+                  <MenuItem value={168}>1 week</MenuItem>
+                  <MenuItem value={720}>30 days</MenuItem>
+                </Select>
+              </FormControl>
+              <HelpTooltip {...HelpTexts.expiryTime} />
+            </Box>
 
             {/* Anonymous Mode Toggle */}
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={anonymousMode}
-                  onChange={(e) => setAnonymousMode(e.target.checked)}
-                  disabled={uploading}
-                />
-              }
-              label={
-                <Box>
-                  <Typography variant="body1">Anonymous Mode</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Hide your wallet address from file recipients
-                  </Typography>
-                </Box>
-              }
-            />
+            <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={anonymousMode}
+                    onChange={(e) => setAnonymousMode(e.target.checked)}
+                    disabled={uploading}
+                  />
+                }
+                label={
+                  <Box>
+                    <Typography variant="body1">Anonymous Mode</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Hide your wallet address from file recipients
+                    </Typography>
+                  </Box>
+                }
+              />
+              <HelpTooltip {...HelpTexts.anonymousMode} />
+            </Box>
           </Box>
 
           {/* Upload Button */}
