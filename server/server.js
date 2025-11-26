@@ -265,7 +265,7 @@ app.post('/api/upload', uploadLimiter, upload.single('file'), fileValidationMidd
       message: 'File uploaded successfully',
       fileId: file.id,
       accessToken: file.accessToken,
-      shareLink: `${req.protocol}://${req.get('host')}/download/${file.accessToken}`,
+      shareLink: `http://localhost:5173/download/${file.accessToken}`,
       transactionHash,
       blockNumber,
       fileHash
@@ -601,7 +601,7 @@ app.get('/api/files/:walletAddress', async (req, res) => {
         timeRemainingHours: Math.max(0, Math.floor(timeRemaining / (1000 * 60 * 60))), // hours until expiry
         derivedStatus,
         isExpired: timeRemaining <= 0 || file.viewsRemaining <= 0,
-        shareLink: `${req.protocol}://${req.get('host')}/download/${file.accessToken}`
+        shareLink: `http://localhost:5173/download/${file.accessToken}`
       };
     });
 
