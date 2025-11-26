@@ -5,6 +5,7 @@ const path = require('path');
 const sequelize = require('./config/database');
 const File = require('./models/File');
 const blockchainService = require('./services/blockchainService');
+const cleanupService = require('./services/cleanupService');
 const { calculateFileHash, verifyFileHash } = require('./utils/hashUtils');
 const { verifyWalletSignature, isValidWalletAddress } = require('./middleware/walletAuth');
 require('dotenv').config();
@@ -37,6 +38,9 @@ blockchainService.initialize()
     console.error('The server will start, but blockchain features will be unavailable.');
     console.error('To fix this, run: npm run ganache (in a separate terminal) and npm run deploy');
   });
+
+// Start Cleanup Service
+cleanupService.start();
 
 // File Storage Configuration
 const storage = multer.diskStorage({
@@ -734,6 +738,31 @@ app.post('/api/verify', async (req, res) => {
       message: 'Error verifying file',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
       code: 'VERIFICATION_ERROR'
+    });
+  }
+});
+
+// Manual cleanup trigger endpoint (for testing/admin purposes)
+app.post('/api/cleanup/trigger', async (req, res) => {
+  try {
+    console.log('Manual cleanup triggered via API');
+    
+    // Run cleanup in background
+    cleanupService.triggerManualCleanup().catch(err => {
+      console.error('Error in manual cleanup:', err);
+    });
+    
+    res.json({
+      success: true,
+      message: 'Cleanup job triggered successfully',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error triggering cleanup:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error triggering cleanup',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 });
