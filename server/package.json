@@ -10,7 +10,10 @@
     "deploy": "node scripts/deploy.js",
     "ganache": "npx ganache --port 8545 --deterministic",
     "check-ganache": "node scripts/check-ganache.js",
-    "test-blockchain": "node scripts/test-blockchain-service.js"
+    "test-blockchain": "node scripts/test-blockchain-service.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "keywords": [],
   "author": "",
@@ -30,7 +33,9 @@
   },
   "devDependencies": {
     "ganache": "^7.9.2",
+    "jest": "^30.2.0",
     "nodemon": "^2.0.22",
-    "solc": "^0.8.19"
+    "solc": "^0.8.19",
+    "supertest": "^7.1.4"
   }
 }
