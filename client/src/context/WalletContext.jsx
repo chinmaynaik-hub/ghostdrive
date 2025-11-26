@@ -49,20 +49,32 @@ export const WalletProvider = ({ children }) => {
 
   // Connect wallet function
   const connectWallet = useCallback(async () => {
+    console.log('=== connectWallet function called ===');
+    console.log('typeof window:', typeof window);
+    console.log('window.ethereum:', window.ethereum);
+    console.log('Boolean(window.ethereum):', Boolean(window.ethereum));
+    console.log('isMetaMaskInstalled():', isMetaMaskInstalled());
     setError(null);
     
+    console.log('Checking if MetaMask is installed...');
     if (!isMetaMaskInstalled()) {
+      console.log('MetaMask NOT installed');
+      console.log('All window properties with "ethereum":', Object.keys(window).filter(k => k.toLowerCase().includes('ethereum')));
       setError('MetaMask is not installed. Please install MetaMask to use this feature.');
       return false;
     }
+    console.log('MetaMask IS installed');
 
     setIsConnecting(true);
+    console.log('Set isConnecting to true');
 
     try {
       // Request account access
+      console.log('Requesting accounts from MetaMask...');
       const accounts = await window.ethereum.request({
         method: 'eth_requestAccounts',
       });
+      console.log('Accounts received:', accounts);
 
       if (accounts.length === 0) {
         setError('No accounts found. Please create an account in MetaMask.');

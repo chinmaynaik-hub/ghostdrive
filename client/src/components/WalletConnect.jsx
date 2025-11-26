@@ -64,7 +64,12 @@ const WalletConnectCompact = () => {
   };
 
   const handleConnect = async () => {
-    await connectWallet();
+    console.log('=== Connect Wallet Button Clicked (Compact) ===');
+    console.log('isMetaMaskInstalled:', isMetaMaskInstalled);
+    console.log('isConnecting:', isConnecting);
+    console.log('window.ethereum:', window.ethereum);
+    const result = await connectWallet();
+    console.log('connectWallet result:', result);
   };
 
   const handleDisconnect = () => {

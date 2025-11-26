@@ -32,7 +32,7 @@ import { useParams } from 'react-router-dom';
 import { FilePreviewSkeleton } from './SkeletonLoaders';
 import HelpTooltip, { HelpTexts } from './HelpTooltip';
 
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = 'http://localhost:3001';
 
 // Helper function to format file size
 const formatFileSize = (bytes) => {

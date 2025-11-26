@@ -8,6 +8,7 @@ class BlockchainService {
     this.web3 = null;
     this.contract = null;
     this.contractAddress = null;
+    this.serverAccount = null; // Server account for sending transactions
     this.initialized = false;
   }
 
@@ -43,10 +44,18 @@ class BlockchainService {
       this.contractAddress = config.contractAddress;
       this.contract = new this.web3.eth.Contract(config.abi, this.contractAddress);
       
+      // Get the first account from Ganache to use as server account for transactions
+      const accounts = await this.web3.eth.getAccounts();
+      if (accounts.length === 0) {
+        throw new Error('No accounts available in the blockchain network');
+      }
+      this.serverAccount = accounts[0];
+      
       this.initialized = true;
       console.log('✓ Blockchain service initialized');
       console.log(`  Network: ${networkUrl}`);
       console.log(`  Contract: ${this.contractAddress}`);
+      console.log(`  Server Account: ${this.serverAccount}`);
       
       return true;
     } catch (error) {
@@ -68,7 +77,7 @@ class BlockchainService {
    * Record file metadata on blockchain with retry logic
    * @param {string} fileHash - SHA-256 hash of the file (hex string)
    * @param {number} timestamp - Unix timestamp
-   * @param {string} walletAddress - Uploader's wallet address
+   * @param {string} walletAddress - Uploader's wallet address (stored in metadata, not used for tx)
    * @param {number} maxRetries - Maximum number of retry attempts (default: 3)
    * @returns {Promise<Object>} Transaction receipt with hash and block number
    */
@@ -90,6 +99,10 @@ class BlockchainService {
       throw new Error('File hash must be 32 bytes (64 hex characters)');
     }
 
+    // Use server account for transactions (Ganache account)
+    // The walletAddress parameter is stored in the database for ownership tracking
+    const txAccount = this.serverAccount;
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`Blockchain recording attempt ${attempt}/${maxRetries}...`);
@@ -100,13 +113,13 @@ class BlockchainService {
         // Estimate gas
         const gasEstimate = await this.contract.methods
           .registerFile(fileHashBytes32, timestamp)
-          .estimateGas({ from: walletAddress });
+          .estimateGas({ from: txAccount });
 
-        // Send transaction
+        // Send transaction using server account
         const receipt = await this.contract.methods
           .registerFile(fileHashBytes32, timestamp)
           .send({
-            from: walletAddress,
+            from: txAccount,
             gas: Math.floor(gasEstimate * 1.2), // Add 20% buffer
             gasPrice: gasPrice
           });

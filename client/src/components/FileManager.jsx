@@ -37,7 +37,7 @@ import axios from 'axios';
 import { useWallet } from '../context/WalletContext';
 import { FileTableRowSkeleton } from './SkeletonLoaders';
 
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = 'http://localhost:3001';
 const AUTO_REFRESH_INTERVAL = 30000; // 30 seconds
 
 // Format file size for display

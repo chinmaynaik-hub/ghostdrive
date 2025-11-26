@@ -159,7 +159,7 @@ const FileUpload = () => {
       setTransactionStatus('blockchain');
       setActiveStep(3);
 
-      const response = await axios.post('http://localhost:5000/api/upload', formData, {
+      const response = await axios.post('http://localhost:3001/api/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         },
@@ -257,7 +257,7 @@ const FileUpload = () => {
     setActiveStep(3);
     
     try {
-      const response = await axios.post('http://localhost:5000/api/upload', formDataRef.current, {
+      const response = await axios.post('http://localhost:3001/api/upload', formDataRef.current, {
         headers: {
           'Content-Type': 'multipart/form-data'
         },
