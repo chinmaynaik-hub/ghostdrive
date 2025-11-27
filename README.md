@@ -9,7 +9,11 @@ A decentralized file sharing platform that leverages blockchain technology for i
 - **Anonymous Mode**: Option to share files without revealing uploader identity
 - **File Verification**: Recipients can verify file integrity against blockchain records
 - **Automatic Cleanup**: Expired files are automatically removed
-- **Wallet Integration**: Ethereum wallet-based authentication
+- **Wallet Integration**: MetaMask wallet-based authentication
+- **View Limits**: Set maximum number of downloads per file
+- **Expiry Times**: Configure automatic file deletion after specified time
+- **File Management**: View and manage all your uploaded files
+- **Share Links**: Generate secure, shareable links for file access
 
 ## 📋 Project Status
 
@@ -19,11 +23,32 @@ A decentralized file sharing platform that leverages blockchain technology for i
   - Blockchain service with retry logic
   - Ganache local blockchain setup
   - Comprehensive testing suite
-
-### 🚧 In Progress
-- Database schema enhancements
-- Access token-based sharing system
-- Frontend wallet integration
+- **Task 5**: File upload with blockchain integration
+  - Multi-part file upload with metadata
+  - SHA-256 hash calculation
+  - Blockchain transaction recording
+  - View limits and expiry configuration
+- **Task 6**: Access token-based file sharing
+  - Secure token generation
+  - Share link creation
+  - Token-based file access
+- **Task 7**: File management and listing
+  - User file dashboard
+  - Sorting and filtering
+  - Status tracking (active/expired/deleted)
+- **Task 8**: File deletion with confirmation
+  - Secure deletion endpoint
+  - Wallet signature verification
+  - Cleanup of blockchain records
+- **Task 9**: File verification system
+  - Blockchain-based verification
+  - Hash comparison
+  - Metadata retrieval
+- **Frontend**: Complete React UI
+  - Wallet connection with MetaMask
+  - File upload interface
+  - File manager dashboard
+  - Download and verification pages
 
 ## 🏗️ Architecture
 
@@ -69,12 +94,13 @@ A decentralized file sharing platform that leverages blockchain technology for i
 ### Prerequisites
 - Node.js (v16 or higher)
 - MySQL (v8 or higher)
+- MetaMask browser extension
 - Git
 
 ### Clone the Repository
 ```bash
-git clone <your-repo-url>
-cd hyperthon
+git clone https://github.com/chinmaynaik-hub/ghostdrive.git
+cd ghostdrive
 ```
 
 ### Backend Setup
@@ -98,19 +124,22 @@ PORT=3001
 
 3. **Start Ganache (local blockchain):**
 ```bash
-npm run ganache
+npx ganache --port 8545 --chain.chainId 1337
 ```
 Keep this terminal running!
 
 4. **Deploy smart contract:**
+In a new terminal:
 ```bash
-npm run deploy
+cd server
+node scripts/deploy.js
 ```
 
 5. **Start the server:**
 ```bash
-npm run dev
+node server.js
 ```
+Server will run on `http://localhost:3001`
 
 ### Frontend Setup
 
@@ -127,18 +156,30 @@ npm run dev
 
 The frontend will be available at `http://localhost:5173`
 
+### MetaMask Setup
+
+1. **Install MetaMask:**
+   - Install the MetaMask browser extension from https://metamask.io/download/
+
+2. **Add Ganache Network:**
+   - Open MetaMask
+   - Click on the network dropdown (top center)
+   - Click "Add Network" → "Add a network manually"
+   - Enter the following details:
+     - Network Name: `Ganache Local`
+     - RPC URL: `http://127.0.0.1:8545`
+     - Chain ID: `1337`
+     - Currency Symbol: `ETH`
+   - Click "Save"
+
+3. **Import Test Account:**
+   - When you start Ganache, it displays 10 test accounts with private keys
+   - Copy any private key from the Ganache output
+   - In MetaMask, click the account icon → "Import Account"
+   - Paste the private key
+   - You now have a test account with 1000 ETH for development
+
 ## 🧪 Testing
-
-### Test Blockchain Service
-```bash
-cd server
-npm run test-blockchain
-```
-
-### Check Ganache Connection
-```bash
-npm run check-ganache
-```
 
 ### Health Check
 ```bash
@@ -155,6 +196,37 @@ Expected response:
   "timestamp": "2024-..."
 }
 ```
+
+### Manual Testing Flow
+
+1. **Start all services:**
+   - Terminal 1: Ganache blockchain
+   - Terminal 2: Backend server
+   - Terminal 3: Frontend dev server
+
+2. **Connect wallet:**
+   - Open http://localhost:5173
+   - Click "Connect Wallet"
+   - Approve connection in MetaMask
+
+3. **Upload a file:**
+   - Select a file
+   - Configure view limit and expiry time
+   - Click "Upload File"
+   - Copy the share link
+
+4. **Download file:**
+   - Paste share link in browser
+   - Click "Download File"
+
+5. **Verify file:**
+   - On download page, click "Verify File"
+   - Check blockchain verification results
+
+6. **Manage files:**
+   - Navigate to "My Files"
+   - View all uploaded files
+   - Delete files if needed
 
 ## 📚 Documentation
 
@@ -243,7 +315,8 @@ ISC
 ## 🐛 Known Issues
 
 - Ganache must be restarted and contract redeployed if blockchain state is lost
-- File uploads currently require manual wallet address input (frontend integration pending)
+- When Ganache restarts, previously uploaded files won't be verifiable on blockchain (database records remain)
+- MetaMask must be properly configured with Ganache network for wallet features to work
 
 ## 📞 Support
 
