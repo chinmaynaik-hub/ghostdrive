@@ -256,31 +256,26 @@ Expected response:
 ## 🗂️ Project Structure
 
 ```
-hyperthon/
+ghostdrive/
 ├── client/                      # React frontend
 │   ├── src/
 │   │   ├── components/         # React components
 │   │   └── ...
 │   └── package.json
 ├── server/                      # Express backend
-│   ├── contracts/              # Solidity smart contracts
-│   │   └── FileRegistry.sol
-│   ├── services/               # Business logic
-│   │   └── blockchainService.js
-│   ├── scripts/                # Utility scripts
-│   │   ├── compile.js
-│   │   ├── deploy.js
-│   │   └── test-blockchain-service.js
-│   ├── models/                 # Database models
-│   ├── config/                 # Configuration files
-│   ├── uploads/                # File storage
-│   └── package.json
-└── .kiro/                      # Spec-driven development
-    └── specs/
-        └── blockchain-file-sharing/
-            ├── requirements.md
-            ├── design.md
-            └── tasks.md
+    ├── contracts/              # Solidity smart contracts
+    │   └── FileRegistry.sol
+    ├── services/               # Business logic
+    │   └── blockchainService.js
+    ├── scripts/                # Utility scripts
+    │   ├── compile.js
+    │   ├── deploy.js
+    │   └── test-blockchain-service.js
+    ├── models/                 # Database models
+    ├── config/                 # Configuration files
+    ├── uploads/                # File storage
+    └── package.json
+
 ```
 
 ## 🔐 Security Considerations
@@ -306,7 +301,7 @@ For production deployment:
 
 ## 🤝 Contributing
 
-This project follows a spec-driven development approach. See the implementation tasks in `.kiro/specs/blockchain-file-sharing/tasks.md` for the development roadmap.
+We welcome contributions from the community! Whether you're fixing bugs, improving documentation, or proposing new features, your input is valued and appreciated.
 
 ## 📝 License
 
@@ -320,8 +315,5 @@ ISC
 
 ## 📞 Support
 
-For issues or questions, please refer to the documentation in the `server/` directory or create an issue in the repository.
+For issues or questions, create an issue in the repository.
 
----
-
-**Note**: This project is under active development. The blockchain infrastructure (Task 1) is complete and tested. Additional features are being implemented according to the task list.
