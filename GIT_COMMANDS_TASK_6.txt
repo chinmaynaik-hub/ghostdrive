@@ -1,0 +1,63 @@
+# Git Commands for Task 6: Build File Verification System
+
+## IMPORTANT: Run these commands one at a time in your terminal
+
+## Step 1: Check current status
+git status
+
+## Step 2: Commit Subtask 6.2 - Add blockchain query functions
+git add server/services/blockchainService.js
+git commit -m "feat: add blockchain query function for file verification
+
+- Implement getFileMetadataFromBlockchain() function
+- Query smart contract for file metadata using file hash
+- Handle blockchain query errors gracefully
+- Return null for non-existent files
+- Validate hash format (32 bytes/64 hex characters)
+
+Task: 6.2 Add blockchain query functions
+Requirements: 4.3"
+
+## Step 3: Commit Subtask 6.1 - Create verification endpoint
+git add server/server.js
+git commit -m "feat: add file verification endpoint
+
+- Implement POST /api/verify endpoint
+- Accept fileHash and optional transactionHash
+- Query blockchain for stored file hash
+- Compare provided hash with blockchain hash
+- Return verification result with metadata
+- Include block number and timestamp when available
+- Handle blockchain unavailability gracefully
+- Validate input parameters with proper error codes
+
+Task: 6.1 Create verification endpoint
+Requirements: 4.1, 4.2, 4.3, 4.4, 4.5"
+
+## Step 4: Commit test files and documentation
+git add server/test-verification.js server/test-verification-simple.js server/VERIFICATION_IMPLEMENTATION.md
+git commit -m "test: add verification endpoint tests and documentation
+
+- Add test scripts for verification endpoint
+- Test validation of missing/invalid parameters
+- Test blockchain unavailability handling
+- Add comprehensive implementation documentation
+
+Task: 6 Build file verification system"
+
+## Step 5: Verify all changes are committed
+git status
+
+## Step 6: View commit history
+git log --oneline -5
+
+## Optional: Push to remote (if you have a remote repository)
+# git push origin main
+# OR
+# git push origin master
+
+## Notes:
+# - Each commit represents a logical unit of work
+# - Commit messages follow conventional commit format
+# - Requirements are referenced in commit messages
+# - Run commands one at a time in Git Bash or Command Prompt

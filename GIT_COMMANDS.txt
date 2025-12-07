@@ -1,0 +1,130 @@
+=================================================================
+TASK 6: FILE VERIFICATION SYSTEM - GIT COMMANDS
+=================================================================
+
+Choose ONE of the following options:
+
+=================================================================
+OPTION 1: THREE SEPARATE COMMITS (Recommended for clear history)
+=================================================================
+
+--- Commit 1: Blockchain Query Function ---
+git add server/services/blockchainService.js
+git commit -m "feat: Add blockchain query function for file verification
+
+- Implement getFileMetadataFromBlockchain() in blockchainService
+- Add hash format validation (32 bytes)
+- Handle 'File not found' errors gracefully
+- Return null for non-existent files
+- Support hash with or without 0x prefix
+
+
+--- Commit 2: Verification API Endpoint ---
+git add server/server.js
+git commit -m "feat: Add file verification API endpoint
+
+- Implement POST /api/verify endpoint
+- Validate file hash format and presence
+- Query blockchain for file metadata
+- Compare provided hash with blockchain hash
+- Return comprehensive verification result
+- Handle blockchain unavailability (503 status)
+- Include block number and timestamp from database
+
+Implements: Task 6.1 - Requirements 4.1, 4.2, 4.3, 4.4, 4.5"
+
+--- Commit 3: Tests and Documentation ---
+git add server/test-verification-simple.js server/VERIFICATION_IMPLEMENTATION.md server/TASK_6_IMPLEMENTATION_GUIDE.md COMMIT_GUIDE_TASK_6.md TASK_6_SUMMARY.md GIT_COMMANDS.txt
+git commit -m "test: Add verification tests and documentation
+
+- Add test script for verification endpoint
+- Test all validation scenarios
+- Test blockchain unavailability handling
+- Add comprehensive implementation documentation
+- Add GitHub commit guides
+
+Related to: Task 6 - Testing Strategy"
+
+--- Push All Commits ---
+git push origin main
+
+
+=================================================================
+OPTION 2: SINGLE COMBINED COMMIT (Simpler, one commit)
+=================================================================
+
+git add server/services/blockchainService.js server/server.js server/test-verification-simple.js server/VERIFICATION_IMPLEMENTATION.md server/TASK_6_IMPLEMENTATION_GUIDE.md COMMIT_GUIDE_TASK_6.md TASK_6_SUMMARY.md GIT_COMMANDS.txt
+
+git commit -m "feat: Implement file verification system (Task 6)
+
+Subtask 6.2 - Blockchain Query Functions:
+- Add getFileMetadataFromBlockchain() to blockchainService
+- Validate hash format and handle errors gracefully
+
+Subtask 6.1 - Verification Endpoint:
+- Implement POST /api/verify endpoint
+- Validate input and check blockchain availability
+- Compare file hash with blockchain record
+- Return comprehensive verification result
+
+Testing & Documentation:
+- Add test script with validation scenarios
+- Add implementation documentation
+- Add commit guides
+
+Implements: Requirements 4.1, 4.2, 4.3, 4.4, 4.5
+Completes: Task 6 - Build file verification system"
+
+git push origin main
+
+
+=================================================================
+FILES BEING COMMITTED
+=================================================================
+
+Modified Files (2):
+  ✏️  server/services/blockchainService.js
+  ✏️  server/server.js
+
+New Files (6):
+  ➕  server/test-verification-simple.js
+  ➕  server/VERIFICATION_IMPLEMENTATION.md
+  ➕  server/TASK_6_IMPLEMENTATION_GUIDE.md
+  ➕  COMMIT_GUIDE_TASK_6.md
+  ➕  TASK_6_SUMMARY.md
+  ➕  GIT_COMMANDS.txt
+
+
+=================================================================
+BEFORE COMMITTING - CHECKLIST
+=================================================================
+
+[ ] All files saved
+[ ] No syntax errors
+[ ] Tests pass (run: node server/test-verification-simple.js)
+[ ] Server starts successfully (run: node server/server.js)
+[ ] Reviewed changes in each file
+[ ] Ready to push to GitHub
+
+
+=================================================================
+AFTER COMMITTING
+=================================================================
+
+Verify on GitHub:
+1. Check that all files are uploaded
+2. Review commit message(s)
+3. Verify code changes look correct
+4. Update task status in project board (if applicable)
+
+
+=================================================================
+NOTES
+=================================================================
+
+- Use Option 1 for clearer git history (3 commits)
+- Use Option 2 for simpler workflow (1 commit)
+- Both options are valid and achieve the same result
+- Make sure you're on the correct branch before committing
+- If you need to change branch: git checkout <branch-name>
+

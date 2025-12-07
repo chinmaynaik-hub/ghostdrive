@@ -1,0 +1,22 @@
+# Simple Git Commands - Copy and paste these one at a time
+
+# Check status
+git status
+
+# Commit 1: Blockchain query function
+git add server/services/blockchainService.js
+git commit -m "feat: add blockchain query function for file verification"
+
+# Commit 2: Verification endpoint
+git add server/server.js
+git commit -m "feat: add file verification endpoint"
+
+# Commit 3: Tests and documentation
+git add server/test-verification.js server/test-verification-simple.js server/VERIFICATION_IMPLEMENTATION.md
+git commit -m "test: add verification endpoint tests and documentation"
+
+# Check final status
+git status
+
+# View commits
+git log --oneline -5
